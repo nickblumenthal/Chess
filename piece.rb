@@ -1,6 +1,6 @@
+# encoding: utf-8
 require './board'
 require './game'
-
 
 class Piece
   attr_accessor :pos
@@ -12,13 +12,13 @@ class Piece
     [-1, 1],
     [1, -1]
   ]
+
   ORTHOGONAL = [
     [1, 0],
     [-1, 0],
     [0, 1],
     [0, -1]
   ]
-
 
   def initialize(pos, color, board)
     @pos, @color, @board = pos, color, board
@@ -28,6 +28,7 @@ class Piece
   end
 
   def dup(new_board)
+    # self.class.new()
     Piece.create(symbol, pos, color, new_board)
   end
 
@@ -63,59 +64,47 @@ class Piece
     new_board.move!(pos, end_pos)
     new_board.in_check?(self.color)
   end
-
 end
 
-
 class SlidingPieces < Piece
+  # def get_move(offset)
+  #   [offset[0] + pos[0], offset[1] + pos[1]]
+  # end
 
   def moves(offsets)
     possible_moves = []
     offsets.each do |offset|
-      row = pos[0]
-      col = pos[1]
-      while (offset[0] + row).between?(0,7) &&
-            (offset[1] + col).between?(0,7)
-
-        break if board[[offset[0] + row, offset[1] + col]] &&
-                 board[[offset[0] + row, offset[1] + col]].color == color
-
-        possible_moves << [offset[0] + row, offset[1] + col]
-
-        break if board[[offset[0] + row, offset[1] + col]] &&
-                 board[[offset[0] + row, offset[1] + col]].color != color
-        row, col = offset[0] + row, offset[1] + col
+      row, col = pos
+      move = [offset[0] + row, offset[1] + col]
+      while board.on_board?(move)
+        break if board[move] && board[move].color == color
+        possible_moves << move
+        break if board[move] && board[move].color != color
+        move = [move[0] + offset[0], move[1] + offset[1]]
       end
     end
+
     possible_moves
   end
-
 end
 
 class SteppingPieces < Piece
-
   def moves(offsets)
     possible_moves = []
     row = pos[0]
     col = pos[1]
     offsets.each do |offset|
-      # if empty? or has_enemy?
-      if (offset[0] + row).between?(0,7) &&
-          (offset[1] + col).between?(0,7) &&
-          (board[[offset[0] + row, offset[1] + col]].nil? ||
-          board[[offset[0] + row, offset[1] + col]].color != color)
-
-        possible_moves << [offset[0] + row, offset[1] + col]
+      move = [row + offset[0], col + offset[1]]
+      if board.on_board?(move) && (board[move].nil? || board[move].color != color)
+        possible_moves << move
       end
     end
+    
     possible_moves
   end
-
 end
 
-
 class Queen < SlidingPieces
-
   def initialize (pos, color, board)
     super(pos, color, board)
     @symbol = :queen
@@ -124,11 +113,9 @@ class Queen < SlidingPieces
   def moves
     super(DIAGONAL + ORTHOGONAL)
   end
-
 end
 
 class Rook < SlidingPieces
-
   def initialize (pos, color, board)
     super(pos, color, board)
     @symbol = :rook
@@ -137,11 +124,9 @@ class Rook < SlidingPieces
   def moves
     super(ORTHOGONAL)
   end
-
 end
 
 class Bishop < SlidingPieces
-
   def initialize (pos, color, board)
     super(pos, color, board)
     @symbol = :bishop
@@ -150,7 +135,6 @@ class Bishop < SlidingPieces
   def moves
     super(DIAGONAL)
   end
-
 end
 
 class Knight < SteppingPieces
@@ -177,7 +161,6 @@ class Knight < SteppingPieces
 end
 
 class King < SteppingPieces
-
   def initialize (pos, color, board)
     super(pos, color, board)
     @symbol = :king
@@ -186,7 +169,6 @@ class King < SteppingPieces
   def moves
     super(DIAGONAL + ORTHOGONAL)
   end
-
 end
 
 class Pawn < SteppingPieces
@@ -194,6 +176,7 @@ class Pawn < SteppingPieces
     :black => [[1, -1], [1, 1]],
     :white => [[-1, -1], [-1, 1]]
   }
+
   def initialize (pos, color, board)
     super(pos, color, board)
     @symbol = :pawn
@@ -201,24 +184,22 @@ class Pawn < SteppingPieces
 
   def moves
     possible_moves = []
-    if color == :black && pos[0] == 1
-      possible_moves << [2, pos[1]]
-      possible_moves << [3, pos[1]]
-    elsif color == :white && pos[0] == 6
-      possible_moves << [5, pos[1]]
-      possible_moves << [4, pos[1]]
-    elsif color == :black
-      possible_moves << [pos[0] + 1, pos[1]]
+    starting_row = (color == :black ? 1 : 6)
+    direction = (color == :black ? 1 : -1)
+    if pos[0] == starting_row
+      possible_moves << [pos[0] + direction, pos[1]]
+      possible_moves << [pos[0] + (direction * 2), pos[1]]
     else
-      possible_moves << [pos[0] - 1, pos[1]]
+      possible_moves << [pos[0] + direction, pos[1]]
     end
-    possible_moves.reject! { |move| move.any? { |idx| !idx.between?(0,7) } }
-    possible_moves.select!{ |move| board[move].nil? } unless possible_moves.empty?
+    possible_moves.select! { |move| board.on_board?(move) }
+    possible_moves.select! { |move| board.empty?(move) }
 
     DIAGONAL[color].each do |offset|
       row, col = offset
-      next if !(pos[0] + row).between?(0,7) || !(pos[1] + col).between?(0,7)
-      test_pos = board[[pos[0] + row, pos[1] + col]]
+      move = [pos[0] + row, pos[1] + col]
+      next unless board.on_board?(move)
+      test_pos = board[move]
       if test_pos && test_pos.color != color
         possible_moves << test_pos.pos
       end
@@ -226,5 +207,4 @@ class Pawn < SteppingPieces
 
     possible_moves
   end
-
 end
